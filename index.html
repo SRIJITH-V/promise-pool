@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Promise Pool — Live Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;
+  --border:#2a2a38;--border2:#3a3a50;
+  --text:#e8e8f0;--muted:#7a7a9a;--hint:#4a4a66;
+  --js:#F7DF1E;--js-ink:#0a0a00;
+  --green:#22c55e;--blue:#3b82f6;--amber:#f59e0b;--red:#ef4444;--purple:#a855f7;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(247,223,30,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(247,223,30,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+.hero{position:relative;z-index:1;padding:60px 24px 40px;text-align:center;border-bottom:1px solid var(--border)}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(247,223,30,.1);border:1px solid rgba(247,223,30,.3);border-radius:100px;padding:6px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--js);letter-spacing:1px;margin-bottom:24px}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--js);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+h1{font-size:clamp(28px,5vw,52px);font-weight:600;line-height:1.1;letter-spacing:-1.5px;margin-bottom:16px}
+h1 span{color:var(--js);font-style:italic;font-family:'JetBrains Mono',monospace}
+.hero-sub{font-size:15px;color:var(--muted);max-width:500px;margin:0 auto 32px;line-height:1.7}
+.pill-row{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.pill{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;padding:4px 12px;border-radius:100px;border:1px solid;letter-spacing:.3px}
+.pill-green{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.08)}
+.pill-blue{color:var(--blue);border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.08)}
+.pill-amber{color:var(--amber);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08)}
+.pill-purple{color:var(--purple);border-color:rgba(168,85,247,.3);background:rgba(168,85,247,.08)}
+
+.container{position:relative;z-index:1;max-width:1000px;margin:0 auto;padding:40px 24px 80px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:700px){.container{grid-template-columns:1fr}.full-width{grid-column:1}}
+.full-width{grid-column:1/-1}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:24px;transition:border-color .2s}
+.card:hover{border-color:var(--border2)}
+.card-label{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:16px;font-family:'JetBrains Mono',monospace}
+
+.control-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.control-label{font-size:13px;color:var(--muted)}
+.control-val{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--js);min-width:24px;text-align:right}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;background:var(--bg3);border-radius:2px;outline:none;margin-bottom:16px;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--js);cursor:pointer;border:2px solid var(--bg);transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.btn{width:100%;padding:13px;border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;letter-spacing:.3px}
+.btn-primary{background:var(--js);color:var(--js-ink)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(247,223,30,.25)}
+.btn-primary:active{transform:translateY(0)}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);margin-top:10px}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat-box{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.stat-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--text);display:block;line-height:1;margin-bottom:4px}
+.stat-lbl{font-size:10px;color:var(--muted);letter-spacing:.4px}
+
+.overall-bar-wrap{background:var(--bg3);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px}
+.overall-bar{height:100%;background:linear-gradient(90deg,var(--js),var(--amber));border-radius:6px;width:0%;transition:width .3s ease}
+.overall-pct{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);text-align:right;margin-bottom:16px}
+
+.slots-row{display:flex;gap:8px;flex-wrap:wrap}
+.slot{flex:1;min-width:32px;height:32px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--hint);transition:all .3s}
+.slot.active{background:rgba(247,223,30,.15);border-color:rgba(247,223,30,.5);color:var(--js);font-weight:700;box-shadow:0 0 12px rgba(247,223,30,.1)}
+
+.lanes-wrap{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:4px}
+.lanes-wrap::-webkit-scrollbar{width:3px}
+.lanes-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.lane{display:grid;grid-template-columns:64px 1fr 36px;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;transition:all .3s;opacity:.4}
+.lane.waiting{opacity:.35}
+.lane.running{opacity:1;border-color:rgba(247,223,30,.4);background:rgba(247,223,30,.04)}
+.lane.done{opacity:.75;border-color:rgba(34,197,94,.3)}
+.lane.failed{opacity:.75;border-color:rgba(239,68,68,.3)}
+.lane-id{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;color:var(--muted)}
+.lane.running .lane-id{color:var(--js)}
+.lane.done .lane-id{color:var(--green)}
+.lane.failed .lane-id{color:var(--red)}
+.lane-bar-wrap{background:var(--bg);border-radius:4px;height:6px;overflow:hidden}
+.lane-bar{height:100%;border-radius:4px;width:0%;transition:width .08s linear}
+.lane.running .lane-bar{background:var(--js)}
+.lane.done .lane-bar{background:var(--green);width:100%!important}
+.lane.failed .lane-bar{background:var(--red);width:100%!important}
+.lane-status{font-size:13px;text-align:center}
+
+.log{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;height:160px;overflow-y:auto;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.9}
+.log::-webkit-scrollbar{width:3px}
+.log::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-entry{display:flex;gap:10px}
+.log-time{color:var(--hint);flex-shrink:0}
+.log-msg{color:var(--muted)}
+.log-msg.info{color:var(--blue)}
+.log-msg.success{color:var(--green)}
+.log-msg.warn{color:var(--amber)}
+.log-msg.error{color:var(--red)}
+.log-msg.js{color:var(--js)}
+
+.code-block{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8;overflow-x:auto}
+.kw{color:#c084fc}.fn{color:#60a5fa}.str{color:#86efac}.cm{color:var(--hint);font-style:italic}.num{color:#fb923c}
+
+footer{position:relative;z-index:1;text-align:center;padding:24px;border-top:1px solid var(--border);font-size:12px;color:var(--hint)}
+footer a{color:var(--js);text-decoration:none}
+footer a:hover{text-decoration:underline}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeIn .3s ease forwards}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">LIVE DEMO</div>
+  <h1>Promise <span>Pool</span></h1>
+  <p class="hero-sub">Async task scheduler with concurrency control. Watch tasks run in parallel — but never more than your limit.</p>
+  <div class="pill-row">
+    <span class="pill pill-green">Zero Dependencies</span>
+    <span class="pill pill-blue">Pure JavaScript</span>
+    <span class="pill pill-amber">Browser + Node.js</span>
+    <span class="pill pill-purple">MNC Interview Favourite</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="card">
+    <div class="card-label">Configuration</div>
+    <div class="control-row">
+      <span class="control-label">Concurrency limit</span>
+      <span class="control-val" id="val-c">3</span>
+    </div>
+    <input type="range" id="sl-c" min="1" max="8" value="3" oninput="document.getElementById('val-c').textContent=this.value">
+    <div class="control-row">
+      <span class="control-label">Total tasks</span>
+      <span class="control-val" id="val-t">10</span>
+    </div>
+    <input type="range" id="sl-t" min="3" max="20" value="10" oninput="document.getElementById('val-t').textContent=this.value">
+    <div class="control-row">
+      <span class="control-label">Task speed</span>
+      <span class="control-val" id="val-s">Normal</span>
+    </div>
+    <input type="range" id="sl-s" min="1" max="3" value="2" oninput="updateSpeed(this.value)">
+    <button class="btn btn-primary" id="btn-run" onclick="runDemo()">▶ Run Demo</button>
+    <button class="btn btn-ghost" onclick="resetDemo()">↺ Reset</button>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Live Stats</div>
+    <div class="stats-grid">
+      <div class="stat-box"><span class="stat-num" id="s-run">0</span><div class="stat-lbl">Running</div></div>
+      <div class="stat-box"><span class="stat-num" id="s-done">0</span><div class="stat-lbl">Done</div></div>
+      <div class="stat-box"><span class="stat-num" id="s-wait">0</span><div class="stat-lbl">Waiting</div></div>
+    </div>
+    <div class="overall-bar-wrap"><div class="overall-bar" id="o-bar"></div></div>
+    <div class="overall-pct" id="o-pct">0%</div>
+    <div class="card-label">Concurrency slots</div>
+    <div class="slots-row" id="slots-row"></div>
+  </div>
+
+  <div class="card full-width">
+    <div class="card-label">Task Execution — watch the concurrency limit in action</div>
+    <div class="lanes-wrap" id="lanes-wrap">
+      <div style="color:var(--hint);font-size:13px;text-align:center;padding:40px 0">Click "Run Demo" to see tasks execute</div>
+    </div>
+  </div>
+
+  <div class="card full-width">
+    <div class="card-label">Event Log</div>
+    <div class="log" id="log">
+      <div class="log-entry"><span class="log-time">00:00</span><span class="log-msg js">Promise Pool ready — configure and click Run Demo</span></div>
+    </div>
+  </div>
+
+  <div class="card full-width">
+    <div class="card-label">The Core — how concurrency control works in ~20 lines</div>
+    <div class="code-block"><pre><span class="kw">class</span> <span class="fn">PromisePool</span> {
+  <span class="fn">constructor</span>(concurrency = <span class="num">5</span>) {
+    <span class="kw">this</span>.concurrency = concurrency;   <span class="cm">// ← your limit</span>
+  }
+
+  <span class="fn">run</span>(tasks) {
+    <span class="kw">return new</span> <span class="fn">Promise</span>((resolve) => {
+      <span class="kw">const</span> total = tasks.length;
+      <span class="kw">const</span> results = <span class="kw">new</span> <span class="fn">Array</span>(total);
+      <span class="kw">let</span> completed = <span class="num">0</span>;
+      <span class="kw">let</span> nextIndex  = <span class="kw">this</span>.concurrency; <span class="cm">// pointer into queue</span>
+
+      <span class="kw">const</span> <span class="fn">runTask</span> = (index) => {
+        <span class="fn">Promise</span>.<span class="fn">resolve</span>(tasks[index]())   <span class="cm">// tasks are FUNCTIONS (lazy)</span>
+          .<span class="fn">then</span>(v  => results[index] = { status: <span class="str">'fulfilled'</span>, value: v })
+          .<span class="fn">catch</span>(r => results[index] = { status: <span class="str">'rejected'</span>,  reason: r })
+          .<span class="fn">finally</span>(() => {
+            completed++;
+            <span class="cm">// Safe without locks — JS is single-threaded ✓</span>
+            <span class="kw">if</span> (completed === total)   <span class="fn">resolve</span>(results);
+            <span class="kw">else if</span> (nextIndex < total) <span class="fn">runTask</span>(nextIndex++);
+          });
+      };
+
+      <span class="cm">// Seed initial burst — start exactly `concurrency` tasks</span>
+      <span class="kw">for</span> (<span class="kw">let</span> i = <span class="num">0</span>; i < Math.<span class="fn">min</span>(<span class="kw">this</span>.concurrency, total); i++) {
+        <span class="fn">runTask</span>(i);
+      }
+    });
+  }
+}</pre></div>
+  </div>
+
+</div>
+
+<footer>
+  Built with pure JavaScript · Zero dependencies ·
+  <a href="https://github.com/YOUR_USERNAME/promise-pool" target="_blank">View on GitHub ↗</a>
+</footer>
+
+<script>
+// ── PROMISE POOL ENGINE ──────────────────────────────────────────────────────
+class PromisePool {
+  constructor(concurrency = 5) {
+    this.concurrency = concurrency;
+    this._cb = null;
+  }
+  run(tasks) {
+    if (!tasks.length) return Promise.resolve([]);
+    return new Promise((resolve) => {
+      const total = tasks.length, results = new Array(total);
+      let completed = 0, nextIndex = this.concurrency;
+      const runTask = (i) => {
+        Promise.resolve(tasks[i]())
+          .then(v  => { results[i] = { status:'fulfilled', value:v }; })
+          .catch(r => { results[i] = { status:'rejected',  reason:r }; })
+          .finally(() => {
+            completed++;
+            if (this._cb) this._cb({ completed, total });
+            if (completed === total) resolve(results);
+            else if (nextIndex < total) runTask(nextIndex++);
+          });
+      };
+      for (let i = 0; i < Math.min(this.concurrency, total); i++) runTask(i);
+    });
+  }
+  onProgress(cb) { this._cb = cb; return this; }
+}
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let isRunning = false, startTime = Date.now(), intervals = {}, slotOwners = {};
+const SPEEDS = {1:['Slow',[2000,4000]], 2:['Normal',[800,2000]], 3:['Fast',[300,800]]};
+
+function updateSpeed(v) {
+  document.getElementById('val-s').textContent = SPEEDS[v][0];
+}
+
+function rand(min, max) { return Math.floor(Math.random()*(max-min+1))+min; }
+
+function ts() {
+  const ms = Date.now() - startTime;
+  return String(Math.floor(ms/1000)).padStart(2,'0') + ':' +
+         String(ms%1000).slice(0,2).padStart(2,'0');
+}
+
+function addLog(msg, type='') {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = 'log-entry fade-in';
+  d.innerHTML = `<span class="log-time">${ts()}</span><span class="log-msg ${type}">${msg}</span>`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateStats(run, done, total) {
+  document.getElementById('s-run').textContent  = run;
+  document.getElementById('s-done').textContent = done;
+  document.getElementById('s-wait').textContent = Math.max(0, total-run-done);
+  const pct = total ? Math.round((done/total)*100) : 0;
+  document.getElementById('o-bar').style.width = pct+'%';
+  document.getElementById('o-pct').textContent  = pct+'%';
+}
+
+function buildSlots(n) {
+  const el = document.getElementById('slots-row');
+  el.innerHTML = '';
+  for (let i=0;i<n;i++) {
+    const s = document.createElement('div');
+    s.className='slot'; s.id=`slot-${i}`; s.textContent=i+1;
+    el.appendChild(s);
+  }
+}
+
+function acquireSlot(taskIdx, n) {
+  for (let i=0;i<n;i++) {
+    if (!slotOwners[i]) {
+      slotOwners[i]=taskIdx;
+      const el=document.getElementById(`slot-${i}`);
+      if(el){el.classList.add('active');el.textContent=taskIdx+1;}
+      return i;
+    }
+  }
+  return -1;
+}
+
+function releaseSlot(si) {
+  delete slotOwners[si];
+  const el=document.getElementById(`slot-${si}`);
+  if(el){el.classList.remove('active');el.textContent=si+1;}
+}
+
+function buildLanes(n) {
+  const el = document.getElementById('lanes-wrap');
+  el.innerHTML='';
+  for(let i=0;i<n;i++){
+    const d=document.createElement('div');
+    d.className='lane waiting'; d.id=`lane-${i}`;
+    d.innerHTML=`<div class="lane-id">Task #${String(i+1).padStart(2,'0')}</div>
+      <div class="lane-bar-wrap"><div class="lane-bar" id="bar-${i}"></div></div>
+      <div class="lane-status" id="lstatus-${i}">⏳</div>`;
+    el.appendChild(d);
+  }
+}
+
+async function runDemo() {
+  if (isRunning) return;
+  isRunning = true;
+  startTime = Date.now();
+  intervals = {}; slotOwners = {};
+
+  const c     = parseInt(document.getElementById('sl-c').value);
+  const total = parseInt(document.getElementById('sl-t').value);
+  const spd   = parseInt(document.getElementById('sl-s').value);
+  const [,msRange] = SPEEDS[spd];
+
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('log').innerHTML = '';
+  buildSlots(c);
+  buildLanes(total);
+  updateStats(0, 0, total);
+
+  addLog(`Starting ${total} tasks · concurrency limit: ${c}`, 'js');
+  addLog(`Task duration range: ${msRange[0]}–${msRange[1]}ms`, 'info');
+
+  let running = 0, done = 0;
+
+  const pool = new PromisePool(c);
+
+  const tasks = Array.from({length:total}, (_,i) => () => new Promise((resolve) => {
+    const dur = rand(...msRange);
+    const si  = acquireSlot(i, c);
+    running++;
+
+    const lane     = document.getElementById(`lane-${i}`);
+    const bar      = document.getElementById(`bar-${i}`);
+    const statusEl = document.getElementById(`lstatus-${i}`);
+    if (lane)     lane.className = 'lane running';
+    if (statusEl) statusEl.textContent = '🔄';
+
+    addLog(`Task #${String(i+1).padStart(2,'0')} started (${dur}ms)`, 'warn');
+    updateStats(running, done, total);
+
+    let step = 0;
+    const steps = dur / 50;
+    const iv = setInterval(() => {
+      step++;
+      if (bar) bar.style.width = Math.min(100, Math.round((step/steps)*100))+'%';
+    }, 50);
+    intervals[i] = iv;
+
+    setTimeout(() => {
+      clearInterval(iv);
+      running--; done++;
+      if (lane)     lane.className = 'lane done';
+      if (statusEl) statusEl.textContent = '✅';
+      if (si >= 0)  releaseSlot(si);
+      addLog(`Task #${String(i+1).padStart(2,'0')} complete ✓`, 'success');
+      updateStats(running, done, total);
+      resolve({ id:i, dur });
+    }, dur);
+  }));
+
+  await pool.run(tasks);
+
+  const elapsed = ((Date.now()-startTime)/1000).toFixed(2);
+  addLog('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', '');
+  addLog(`All ${total} tasks complete in ${elapsed}s 🎉`, 'js');
+  addLog(`Concurrency limit of ${c} was never exceeded ✓`, 'success');
+
+  isRunning = false;
+  document.getElementById('btn-run').disabled = false;
+}
+
+function resetDemo() {
+  Object.values(intervals).forEach(clearInterval);
+  isRunning = false;
+  intervals = {}; slotOwners = {};
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('lanes-wrap').innerHTML = '<div style="color:var(--hint);font-size:13px;text-align:center;padding:40px 0">Click "Run Demo" to see tasks execute</div>';
+  document.getElementById('slots-row').innerHTML = '';
+  document.getElementById('log').innerHTML = '<div class="log-entry"><span class="log-time">00:00</span><span class="log-msg js">Promise Pool ready — configure and click Run Demo</span></div>';
+  document.getElementById('o-bar').style.width = '0%';
+  document.getElementById('o-pct').textContent = '0%';
+  updateStats(0,0,0);
+  startTime = Date.now();
+}
+
+startTime = Date.now();
+</script>
+</body>
+</html>
